@@ -5,8 +5,8 @@ SDIR     = src
 IDIR     = include
 ODIR     = obj
 
-SRC      = main.cpp
-DEP      = 
+SRC      = main.cpp util.cpp mutil.cpp
+DEP      = util.h mutil.h
 
 $(ELF): $(patsubst %,$(ODIR)/%.o,$(basename $(SRC)))
 	g++ $^ $(LDFLAGS) -o $@

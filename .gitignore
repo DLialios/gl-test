@@ -1,2 +1,4 @@
 a.out
+compile_commands.json
 obj/
+.cache/
