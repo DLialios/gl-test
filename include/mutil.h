@@ -3,12 +3,33 @@
 
 #include <utility>
 #include <memory>
+#include <stdlib.h>
 
 namespace mutil {
 
 using pint = std::pair<int,int>;
 extern int mmult(const pint &dima, const pint &dimb, 
 		 float *a, float *b, float *res);
+
+struct Vec3f {
+    float x, y, z;
+
+    Vec3f() {}
+
+    Vec3f(float x, float y, float z) :x(x), y(y), z(z) {}
+
+    float& operator[](int i);
+};
+
+struct Vert {
+    Vec3f pos;
+    Vec3f color;
+
+    Vert() {}
+
+    Vert(float x, float y, float z);
+};
+
 
 struct Mat4f {
     float a00,  a01,  a02,  a03,

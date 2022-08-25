@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h> 
 #include <math.h>
 #include <vector>
 #include <iostream>
@@ -7,17 +8,23 @@
 #include "util.h"
 #include "mutil.h"
 
-#define WIDTH  800
-#define HEIGHT 600
-
+static int WIDTH = 800;
+static int HEIGHT = 600;
 static GLuint VBO;
+static GLuint IBO;
 static GLint gTransformLoc;
 
 void createVBuffer() {
-    float v[3][3] {
-	{-1,-1,0},
-	{0,1,0},
-	{1,-1,0}
+    using mutil::Vert, mutil::Vec3f;
+    Vert v[8] {
+	{0.5,	0.5,	0.5},
+	{-0.5,	0.5,	-0.5},
+	{-0.5,	0.5,	0.5},
+	{0.5,	-0.5,	-0.5},
+	{-0.5,	-0.5,	-0.5},
+	{0.5,	0.5,	-0.5},
+	{0.5,	-0.5,	0.5},
+	{-0.5,	-0.5,	0.5}
     };
 
     glGenBuffers(1, &VBO);
@@ -25,54 +32,86 @@ void createVBuffer() {
     glBufferData(GL_ARRAY_BUFFER, sizeof(v), v, GL_STATIC_DRAW);
 }
 
+void createIBuffer() {
+    unsigned int i[] {
+	0, 1, 2,
+	1, 3, 4,
+	5, 6, 3,
+	7, 3, 6,
+	2, 4, 7,
+	0, 7, 6,
+	0, 5, 1,
+	1, 5, 3,
+	5, 0, 6,
+	7, 4, 3,
+	2, 1, 4,
+	0, 2, 7
+    };
+
+    glGenBuffers(1, &IBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,sizeof(i),i,GL_STATIC_DRAW);
+}
+
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
 
 
-    static float scale = 0.0;
-    static float delta = 0.01;
-    static float scale2 = 0.5;
-    static float delta2 = 0.01;
-    static float scale3 = 0.0;
-    static float delta3 = 0.01;
-
-    mutil::Mat4f mattrans {
-	1,0,0,scale,
-	0,1,0,0,
-	0,0,1,0,
-	0,0,0,1
+    static float angle = 0.0;
+    static float delta = 0.005;
+    mutil::Mat4f roty {
+	cosf(angle),	0,  sinf(angle),   0,
+	0,		1,  0,		   0,
+	-sinf(angle),	0,  cos(angle),	   0,
+	0,		0,  0,	           1
     };
-    scale += delta;
-    if (scale >= 1.0 || scale <= -1.0)
-	delta *= -1;
+    mutil::Mat4f rotz {
+	cosf(angle),	-sinf(angle),	0,  0,
+	sinf(angle),	cos(angle),	0,  0,
+	0,		0,		1,  0,
+	0,		0,		0,  1
 
-    mutil::Mat4f matrot {
-	cosf(scale3), -sinf(scale3),0,0,
-	sinf(scale3), cosf(scale3), 0,0,
-	0,0,1,0,
-	0,0,0,1
     };
-    scale3 += delta3;
-    if (scale3 >= 2*M_PI || scale3 <= -2*M_PI)
-	delta3 *= -1;
+    angle += delta;
 
-    mutil::Mat4f matscale {
-	scale2,0,0,0,
-	0,scale2,0,0,
-	0,0,1,0,
-	0,0,0,1
+    mutil::Mat4f translate {
+	1,  0,	0,  0,
+	0,  1,	0,  0,
+	0,  0,	1,  2,
+	0,  0,	0,  1
     };
-    scale2 += delta2;
-    if (scale2 >= 1.0 || scale2 <= 0.5)
-	delta2 *= -1;
 
-    mutil::Mat4f transform = mattrans * matrot * matscale;
+    float fov = M_PI / 2;
+    float tanHalfFOV = tanf(fov / 2);
+    float d = 1 / tanHalfFOV;
+    float ar = (float) WIDTH / HEIGHT;
+    float nz = 1;
+    float fz = 10;
+    static const float A = (-nz-fz)/(nz-fz);
+    static const float B = (2*fz*nz)/(nz-fz);
+    mutil::Mat4f projection {
+	d/ar,0,0,0,
+	0,d,0,0,
+	0,0,A,B,
+	0,0,1,0
+    };
+
+    mutil::Mat4f transform = projection * translate * rotz * roty;
     glUniformMatrix4fv(gTransformLoc, 1, GL_TRUE, &transform[0][0]);
+
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
+
+    //pos
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 2*sizeof(mutil::Vec3f), 0);
+    //color
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 2*sizeof(mutil::Vec3f), (void*)sizeof(mutil::Vec3f));
+
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
     glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
 
 
     glutSwapBuffers();
@@ -110,7 +149,14 @@ GLuint initProg() {
     return program;
 }
 
+void reshape(int w, int h) {
+    WIDTH = w;
+    HEIGHT = h; 
+    glViewport(0,0,w,h);
+}
+
 int main(int argc, char **argv) {
+    srandom(getpid());
     try {
 	init(argc, argv);
 	GLuint program = initProg();
@@ -122,9 +168,10 @@ int main(int argc, char **argv) {
 	    throw std::runtime_error(msg);
 	}
 	createVBuffer();
-
+	createIBuffer();
 
 	glutDisplayFunc(display);
+	glutReshapeFunc(reshape); 
 	glutMainLoop();
 	return 0;
     } catch (const std::exception &e) {

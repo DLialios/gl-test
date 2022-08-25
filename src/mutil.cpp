@@ -40,6 +40,21 @@ float* Mat4f::operator[](int i) {
     return cast + (i * 4);
 }
 
+float& Vec3f::operator[](int i) {
+    switch (i) {
+	case 0:
+	    return x;
+	case 1:
+	    return y;
+    }
+    return z;
+}
+
+Vert::Vert(float x, float y, float z) :pos{x,y,z} {
+    color.x = rand() / static_cast<float>(RAND_MAX);
+    color.y = rand() / static_cast<float>(RAND_MAX);
+    color.z = rand() / static_cast<float>(RAND_MAX);
+}
 
 }
 
