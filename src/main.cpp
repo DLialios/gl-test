@@ -7,12 +7,18 @@
 #include <GL/glut.h>
 #include "util.h"
 #include "mutil.h"
+#include "world_transform.h"
+#include "camera_transform.h"
+#include "perspective_transform.h"
+#include "projection_params.h"
 
-static int WIDTH = 800;
-static int HEIGHT = 600;
 static GLuint VBO;
 static GLuint IBO;
 static GLint gTransformLoc;
+
+static camera_transform camera;
+static projectionParams pParams;
+static perspective_transform perspective(&pParams);
 
 void createVBuffer() {
     using mutil::Vert, mutil::Vec3f;
@@ -53,61 +59,29 @@ void createIBuffer() {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,sizeof(i),i,GL_STATIC_DRAW);
 }
 
-void display() {
+void cb_display() {
     glClear(GL_COLOR_BUFFER_BIT);
-
 
     static float angle = 0.0;
     static float delta = 0.005;
-    mutil::Mat4f roty {
-	cosf(angle),	0,  sinf(angle),   0,
-	0,		1,  0,		   0,
-	-sinf(angle),	0,  cos(angle),	   0,
-	0,		0,  0,	           1
-    };
-    mutil::Mat4f rotz {
-	cosf(angle),	-sinf(angle),	0,  0,
-	sinf(angle),	cos(angle),	0,  0,
-	0,		0,		1,  0,
-	0,		0,		0,  1
-
-    };
     angle += delta;
 
-    mutil::Mat4f translate {
-	1,  0,	0,  0,
-	0,  1,	0,  0,
-	0,  0,	1,  2,
-	0,  0,	0,  1
-    };
-
-    float fov = M_PI / 2;
-    float tanHalfFOV = tanf(fov / 2);
-    float d = 1 / tanHalfFOV;
-    float ar = (float) WIDTH / HEIGHT;
-    float nz = 1;
-    float fz = 10;
-    static const float A = (-nz-fz)/(nz-fz);
-    static const float B = (2*fz*nz)/(nz-fz);
-    mutil::Mat4f projection {
-	d/ar,0,0,0,
-	0,d,0,0,
-	0,0,A,B,
-	0,0,1,0
-    };
-
-    mutil::Mat4f transform = projection * translate * rotz * roty;
-    glUniformMatrix4fv(gTransformLoc, 1, GL_TRUE, &transform[0][0]);
+    world_transform w;
+    w.setRotate({0,angle,0});
+    w.setTranslate({0,0,2});
+    
+    mutil::Mat4f WVP = perspective.get() * camera.get() * w.get();
+    glUniformMatrix4fv(gTransformLoc, 1, GL_TRUE, &WVP[0][0]);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
 
     //pos
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 2*sizeof(mutil::Vec3f), 0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, 0);
     //color
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 2*sizeof(mutil::Vec3f), (void*)sizeof(mutil::Vec3f));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, (void*)12);
 
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
     glDisableVertexAttribArray(0);
@@ -118,11 +92,25 @@ void display() {
     glutPostRedisplay();
 }
 
+void cb_reshape(int w, int h) {
+    pParams.width = w;
+    pParams.height = h; 
+    glViewport(0,0,w,h);
+}
+
+void cb_keyboard(unsigned char key, int x, int y) {
+    camera.handle(key,x,y);
+}
+
+void cb_special(int key, int x, int y) {
+    camera.handle(key,x,y);
+}
+
 void init(int argc, char **argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);
-    glutInitWindowSize(WIDTH, HEIGHT);
-    glutInitWindowPosition(WIDTH/2, HEIGHT/2);
+    glutInitWindowSize(pParams.width, pParams.height);
+    glutInitWindowPosition(pParams.width/2, pParams.height/2);
     glutCreateWindow("a.out");
 
     GLenum err = glewInit();
@@ -149,10 +137,11 @@ GLuint initProg() {
     return program;
 }
 
-void reshape(int w, int h) {
-    WIDTH = w;
-    HEIGHT = h; 
-    glViewport(0,0,w,h);
+void registerCB() {
+    glutDisplayFunc(cb_display);
+    glutReshapeFunc(cb_reshape); 
+    glutKeyboardFunc(cb_keyboard);
+    glutSpecialFunc(cb_special);
 }
 
 int main(int argc, char **argv) {
@@ -170,8 +159,7 @@ int main(int argc, char **argv) {
 	createVBuffer();
 	createIBuffer();
 
-	glutDisplayFunc(display);
-	glutReshapeFunc(reshape); 
+	registerCB();
 	glutMainLoop();
 	return 0;
     } catch (const std::exception &e) {

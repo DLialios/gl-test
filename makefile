@@ -5,8 +5,19 @@ SDIR     = src
 IDIR     = include
 ODIR     = obj
 
-SRC      = main.cpp util.cpp mutil.cpp
-DEP      = util.h mutil.h
+SRC      = main.cpp\
+	   util.cpp\
+	   mutil.cpp\
+	   world_transform.cpp\
+	   camera_transform.cpp\
+	   perspective_transform.cpp
+
+DEP      = util.h\
+	   mutil.h\
+	   world_transform.h\
+	   camera_transform.h\
+	   perspective_transform.h\
+	   projection_params.h
 
 $(ELF): $(patsubst %,$(ODIR)/%.o,$(basename $(SRC)))
 	g++ $^ $(LDFLAGS) -o $@
